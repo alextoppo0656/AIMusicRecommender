@@ -6,6 +6,5 @@ pandas
 scikit-learn
 requests
 python-dotenv
-sqlite3
 cachetools
 numpy
