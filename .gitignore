@@ -1,22 +1,22 @@
 # Python files
-    __pycache__/
-    *.pyc
-    *.pyo
-    *.pyd
-    .ipynb_checkpoints
-    .pytest_cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.ipynb_checkpoints
+.pytest_cache
 
-    # Local data and logs
-    data/
-    *.log
+# Local data and logs
+data/
+*.log
     
-    # Environment variable file (Keep this file secret!)
-    .env
-    .env.production 
+# Environment variable file (Keep this file secret!)
+.env
+.env.production 
     
-    # OS files
-    .DS_Store
-    Thumbs.db
+# OS files
+.DS_Store
+Thumbs.db
     
-    # Render/Streamlit files
-    .streamlit/
+# Render/Streamlit files
+.streamlit/
