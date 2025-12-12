@@ -9,6 +9,7 @@ import logging
 import hashlib
 from typing import Optional, Dict, Any
 from spotipy.oauth2 import SpotifyOAuth
+import urllib.parse
 
 # ------------------ CONFIGURATION ------------------
 BACKEND_URL = os.getenv("BACKEND_URL")
@@ -414,21 +415,12 @@ if not st.session_state["token_info"]:
         
         # ----------------------------------------------------------------------------------
 
-        st.markdown(f"""
-            <a href="{auth_url_with_params}" target="_self" style="
-                background: linear-gradient(135deg, #1DB954 0%, #1ed760 100%);
-                color: white;
-                padding: 12px 24px;
-                border-radius: 10px;
-                text-decoration: none;
-                font-weight: 700;
-                font-size: 16px;
-                display: inline-block;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-                transition: all 0.3s ease;">
-                🔗 Login with Spotify (Force New User)
-            </a>
-        """, unsafe_allow_html=True)
+        # FIX: Implement JavaScript redirect to avoid X-Frame-Options denial.
+        js_redirect = f"window.top.location.href = '{auth_url_with_params}';"
+        
+        if st.button("🔗 Login with Spotify (Force New User)", type="primary", use_container_width=True):
+            st.markdown(f"<script>{js_redirect}</script>", unsafe_allow_html=True)
+        
         st.info("👆 Click above and enter your credentials to ensure a clean multi-user login.")
         st.warning("⚠️ **Multi-User Support**: Each login creates a new session. Your data is isolated from other users.")
         st.stop()
