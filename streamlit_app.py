@@ -9,7 +9,6 @@ import logging
 import hashlib
 from typing import Optional, Dict, Any
 from spotipy.oauth2 import SpotifyOAuth
-import urllib.parse
 
 # ------------------ CONFIGURATION ------------------
 BACKEND_URL = os.getenv("BACKEND_URL")
@@ -94,27 +93,35 @@ h1, h2, h3 {
   color: white;
 }
 
-/* Custom CSS for the HTML Login Button (to match Streamlit style) */
-.custom-login-btn {
-  background: linear-gradient(135deg, #1DB954 0%, #1ed760 100%);
-  color: white !important;
-  padding: 12px 24px;
-  border-radius: 10px;
-  text-decoration: none;
-  font-weight: 700;
-  font-size: 16px;
-  display: block;
-  width: 100%;
-  text-align: center;
-  border: none;
-  cursor: pointer;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-  transition: all 0.3s ease;
+.stButton > button {
+  border-radius: 10px !important;
+  font-weight: 600 !important;
+  transition: all 0.3s ease !important;
 }
 
-.custom-login-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 15px rgba(0,0,0,0.3);
+.stButton > button:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
+}
+
+.stButton > button[kind="primary"] {
+  background-color: #2ecc71 !important;
+  border-color: #27ae60 !important;
+  color: white !important;
+}
+
+.stButton > button[kind="primary"]:hover {
+  background-color: #27ae60 !important;
+}
+
+.stButton > button[kind="secondary"] {
+  background-color: #e74c3c !important;
+  border-color: #c0392b !important;
+  color: white !important;
+}
+
+.stButton > button[kind="secondary"]:hover {
+  background-color: #c0392b !important;
 }
 
 .user-badge {
@@ -179,6 +186,7 @@ def get_valid_token() -> Optional[str]:
         try:
             refresh_token = token_info.get('refresh_token')
             if not refresh_token:
+                logger.error("No refresh token available")
                 st.session_state.clear()
                 st.error("🔒 Session expired. Please log in again.")
                 st.rerun()
@@ -189,7 +197,9 @@ def get_valid_token() -> Optional[str]:
                 raise Exception("Token refresh returned None")
                 
             st.session_state["token_info"] = token_info
+            logger.info("✅ Token refreshed successfully")
         except Exception as e:
+            logger.error(f"Token refresh failed: {e}")
             st.session_state.clear()
             st.error("🔒 Session expired. Please log in again.")
             st.rerun()
@@ -201,6 +211,8 @@ def call_backend(endpoint: str, payload: Dict[str, Any], timeout: int = 30, max_
     """Make API call to backend with proper error handling and retries"""
     for attempt in range(max_retries):
         try:
+            logger.info(f"Calling backend: {endpoint} (attempt {attempt + 1}/{max_retries})")
+            
             response = requests.post(
                 f"{BACKEND_URL}{endpoint}",
                 json=payload,
@@ -208,6 +220,7 @@ def call_backend(endpoint: str, payload: Dict[str, Any], timeout: int = 30, max_
                 headers={"Content-Type": "application/json"}
             )
             
+            # Handle 401/403 (Invalid token or Backend Session Mismatch)
             if response.status_code in (401, 403):
                 error_detail = response.json().get("detail", "Session expired or mismatch")
                 st.error(f"🔒 Error: {error_detail}. Please log out and log in again.")
@@ -217,7 +230,9 @@ def call_backend(endpoint: str, payload: Dict[str, Any], timeout: int = 30, max_
             
             if response.status_code == 500:
                 if attempt < max_retries - 1:
-                    time.sleep(2 ** attempt)
+                    wait_time = 2 ** attempt
+                    logger.warning(f"Server error, retrying in {wait_time}s...")
+                    time.sleep(wait_time)
                     continue
                 else:
                     error_data = response.json() if response.text else {}
@@ -226,13 +241,37 @@ def call_backend(endpoint: str, payload: Dict[str, Any], timeout: int = 30, max_
                     return None
             
             response.raise_for_status()
-            return response.json()
+            data = response.json()
             
-        except requests.exceptions.RequestException as e:
+            logger.info(f"✅ Backend call successful: {endpoint}")
+            return data
+            
+        except requests.exceptions.Timeout:
             if attempt < max_retries - 1:
+                logger.warning(f"Timeout, retrying...")
                 time.sleep(2 ** attempt)
                 continue
-            st.error(f"❌ Request failed: {str(e)}")
+            st.error("⏱️ Request timed out after multiple attempts. Please try again.")
+            return None
+            
+        except requests.exceptions.ConnectionError:
+            if attempt < max_retries - 1:
+                logger.warning(f"Connection error, retrying...")
+                time.sleep(2 ** attempt)
+                continue
+            st.error("🔌 Cannot connect to backend server. Make sure it's running.")
+            return None
+            
+        except requests.exceptions.HTTPError as e:
+            st.error(f"❌ HTTP Error {e.response.status_code}")
+            return None
+            
+        except Exception as e:
+            if attempt < max_retries - 1:
+                logger.warning(f"Unexpected error, retrying: {e}")
+                time.sleep(2 ** attempt)
+                continue
+            st.error(f"❌ Unexpected error: {str(e)}")
             return None
     
     return None
@@ -269,14 +308,15 @@ def perform_logout():
         except Exception as e:
             logger.error(f"Logout API call failed (non-critical): {e}")
     
+    logger.info(f"User logging out: {st.session_state.get('user_id', 'unknown')}")
+    
     st.session_state.clear()
     
-    # Add final client-side safety net (clears browser's local storage and forces a hard reload)
+    # Add final client-side safety net (clears browser's local storage)
     st.markdown("""
         <script>
         localStorage.clear();
         sessionStorage.clear();
-        window.location.reload(true);
         </script>
     """, unsafe_allow_html=True)
     
@@ -320,6 +360,8 @@ if not st.session_state["token_info"]:
         
         # AGGRESSIVE STATE CLEAR ON NEW LOGIN
         if st.session_state.get("user_id"):
+            logger.warning(f"Stale user ID ({st.session_state['user_id']}) detected during new auth flow. Clearing all session state.")
+            
             st.session_state.clear()
             st.session_state["session_id"] = hashlib.md5(str(time.time()).encode()).hexdigest()[:16]
             st.rerun() 
@@ -340,6 +382,7 @@ if not st.session_state["token_info"]:
                     st.session_state["user_id"] = user_id
                     st.session_state["user_display_name"] = user_display_name
                     
+                    logger.info(f"✅ User authenticated: {user_id} (session: {st.session_state['session_id']})")
                     st.success(f"✅ Successfully logged in as **{user_display_name}**!")
                 else:
                     raise Exception("No access token received")
@@ -350,12 +393,14 @@ if not st.session_state["token_info"]:
                 
             except Exception as e:
                 st.error(f"❌ Authentication failed: {str(e)}")
+                logger.error(f"Auth error: {e}")
                 st.session_state.clear()
                 st.rerun()
     else:
         auth_url = sp_oauth.get_authorize_url()
         
-        # --- Build Authorization URL ---
+        # --- CRITICAL FIX: Ensure robust URL construction with all necessary parameters ---
+        
         import urllib.parse
         parsed_url = urllib.parse.urlparse(auth_url)
         query_params = urllib.parse.parse_qs(parsed_url.query)
@@ -369,16 +414,21 @@ if not st.session_state["token_info"]:
         
         # ----------------------------------------------------------------------------------
 
-        # CRITICAL FIX: Use HTML/JS button to force top-level redirect and bypass X-Frame-Options denial.
-        
-        button_html = f"""
-        <button class="custom-login-btn" onclick="window.top.location.href = '{auth_url_with_params}';">
-            🔗 Login with Spotify (Force New User)
-        </button>
-        """
-        
-        st.markdown(button_html, unsafe_allow_html=True)
-        
+        st.markdown(f"""
+            <a href="{auth_url_with_params}" target="_self" style="
+                background: linear-gradient(135deg, #1DB954 0%, #1ed760 100%);
+                color: white;
+                padding: 12px 24px;
+                border-radius: 10px;
+                text-decoration: none;
+                font-weight: 700;
+                font-size: 16px;
+                display: inline-block;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+                transition: all 0.3s ease;">
+                🔗 Login with Spotify (Force New User)
+            </a>
+        """, unsafe_allow_html=True)
         st.info("👆 Click above and enter your credentials to ensure a clean multi-user login.")
         st.warning("⚠️ **Multi-User Support**: Each login creates a new session. Your data is isolated from other users.")
         st.stop()
@@ -416,6 +466,7 @@ if st.session_state.get("token_info") and not st.session_state.get("user_id"):
             st.session_state["user_id"] = user_info.get('id')
             st.session_state["user_display_name"] = user_info.get('display_name')
     except Exception as e:
+        logger.error(f"Failed to get user info: {e}")
         st.session_state.clear()
         st.rerun()
 
