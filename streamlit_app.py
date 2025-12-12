@@ -11,10 +11,10 @@ from typing import Optional, Dict, Any
 from spotipy.oauth2 import SpotifyOAuth
 
 # ------------------ CONFIGURATION ------------------
-BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
+BACKEND_URL = os.getenv("BACKEND_URL")
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
-SPOTIFY_REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI", "http://127.0.0.1:8501/callback")
+SPOTIFY_REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI")
 SCOPE = "user-library-read"
 
 if not SPOTIFY_CLIENT_ID or not SPOTIFY_CLIENT_SECRET:

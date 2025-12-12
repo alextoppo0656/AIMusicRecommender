@@ -40,7 +40,7 @@ class Config:
     
     SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
     SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
-    SPOTIFY_REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI", "http://127.0.0.1:8501/callback")
+    SPOTIFY_REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI")
     
     LASTFM_API_KEY = os.getenv("LASTFM_API_KEY")
     LASTFM_API_SECRET = os.getenv("LASTFM_API_SECRET")
